@@ -1,6 +1,10 @@
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
+from dataset_foundry.downloader import fetch
+from dataset_foundry.models import Candidate, Limits
 from dataset_foundry.policy import SkipAsset, WebPolicy, checked_url
 
 
@@ -35,11 +39,6 @@ class PolicyTests(unittest.TestCase):
 
     @patch("dataset_foundry.downloader.checked_url", return_value=("example.org", "/test.bin"))
     def test_remote_403_stops_host_and_skips_file(self, _checked):
-        import tempfile
-        from pathlib import Path
-        from dataset_foundry.downloader import fetch
-        from dataset_foundry.models import Candidate, Limits
-
         response = Mock(status_code=403)
         session = Mock()
         session.get.return_value = response
@@ -55,11 +54,6 @@ class PolicyTests(unittest.TestCase):
 
     @patch("dataset_foundry.downloader.checked_url", return_value=("example.org", "/test.bin"))
     def test_remote_redirect_skipped(self, _checked):
-        import tempfile
-        from pathlib import Path
-        from dataset_foundry.downloader import fetch
-        from dataset_foundry.models import Candidate, Limits
-
         response = Mock(status_code=302, is_redirect=True)
         session = Mock()
         session.get.return_value = response

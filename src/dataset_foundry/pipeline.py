@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import mimetypes
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import requests
@@ -16,7 +16,7 @@ from .policy import SkipAsset, WebPolicy
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _candidate_id(candidate: Candidate) -> str:
@@ -87,10 +87,10 @@ def collect(settings: Settings, run_dir: Path) -> dict:
                             })
                     except SkipAsset as exc:
                         item.update({"status": "skipped", "reason": str(exc), "file_path": None})
-                    except Exception as exc:
+                    except Exception as exc:  # noqa: BLE001 -- intentional audit boundary
                         item.update({"status": "error", "reason": f"{type(exc).__name__}: {exc}", "file_path": None})
                     rows.append(item)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 -- intentional audit boundary
                 events.append({
                     "source_id": source.id, "status": "error", "reason": f"{type(exc).__name__}: {exc}"
                 })

@@ -64,7 +64,7 @@ def process(run_dir: Path, *, video_interval: float = 0, max_frames_per_video: i
             ]
             try:
                 subprocess.run(command, check=True, timeout=300, capture_output=True)
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                 records[record_index].setdefault("quality_flags", []).append("frame_extract_failed")
                 flags += 1
                 continue
