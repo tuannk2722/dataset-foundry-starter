@@ -1,0 +1,52 @@
+# Paths for local sources are relative to THIS config file.
+[project]
+name = "multimodal-demo"
+
+[limits]
+max_asset_mb = 100
+max_assets_per_source = 40
+max_zip_compression_ratio = 100
+min_request_delay_seconds = 1.5
+
+# Safe, offline demo; run this immediately after cloning.
+[[sources]]
+id = "demo-local"
+adapter = "local_dir"
+enabled = true
+rights_confirmed = true
+license = "self-created-demo"
+rights_note = "The synthetic files in examples/sample-data are supplied with this starter."
+path = "../examples/sample-data"
+recursive = true
+
+# A local .zip archive, without mass extraction; change path to your own zip.
+[[sources]]
+id = "my-archive"
+adapter = "local_zip"
+enabled = false
+rights_confirmed = false
+license = "unknown"
+rights_note = "Confirm your rights before enabling."
+path = "../my-approved-dataset.zip"
+
+# Direct HTTPS FILE URLs only, not arbitrary web page spidering.
+[[sources]]
+id = "public-assets"
+adapter = "http_list"
+enabled = false
+rights_confirmed = false
+license = "unknown"
+rights_note = "Review file licensing/site terms and enable only when allowed."
+urls = ["https://example.org/allowed/example.jpg"]
+
+# Repository files through Hugging Face's documented dataset API.
+[[sources]]
+id = "hf-example"
+adapter = "hf_dataset"
+enabled = false
+rights_confirmed = false
+license = "unknown"
+rights_note = "Review dataset card, access conditions, and permitted use."
+repo_id = "org/repository"
+revision = "main"
+include_extensions = [".jpg", ".png", ".txt", ".json", ".zip"]

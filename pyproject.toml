@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dataset-foundry-starter"
+version = "0.1.0"
+description = "Source-aware, reusable multi-modal dataset candidate collector and staging tool"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = ["requests>=2.31,<3"]
+
+[project.optional-dependencies]
+images = ["Pillow>=10,<13"]
+huggingface = ["huggingface_hub>=0.30,<2"]
+dev = ["pytest>=8,<10", "ruff>=0.9,<1"]
+all = ["Pillow>=10,<13", "huggingface_hub>=0.30,<2", "pytest>=8,<10", "ruff>=0.9,<1"]
+
+[project.scripts]
+dsforge = "dataset_foundry.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

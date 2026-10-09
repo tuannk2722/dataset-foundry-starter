@@ -1,0 +1,1 @@
+Synthetic sample, authored for dataset-foundry testing.
