@@ -14,15 +14,38 @@ Generic candidates have `source_id`, `kind`, `origin`, `name`, and adapter-speci
 4. Add integration tests for inaccessible/gated/rate-limited sources.
 5. Document required rights/license checks; leave disabled in example config.
 
-A small `DiscoveryAdapter` Protocol and adapter registry are already present. Add a module for each new source type, then register its discovery function. Download handling remains centralized in `downloader.py`, so a new transport kind needs a matching bounded fetcher.
+A small `DiscoveryAdapter` Protocol and adapter registry are present. Add a module for each
+new source type, then call `register_adapter` before loading its configuration. Registration
+is in-process; automatic Python package entry-point loading is not implemented. Download
+handling remains centralized in `downloader.py`, so a new transport kind needs a matching
+bounded fetcher.
 
 ## Add a processor
 
-A processor consumes `run_dir` and manifest rows, writes derived artifacts under `derived/`, and records `asset_id`, `parent_id`, `source_id`, `origin`, `review_status`, and file checksum. Never overwrite original files. Prefer a registry of processor stages over adding task-specific branches to the generic core. Example future plugins: audio metadata, PDF text extraction, table schema validation, object detection/crop with configurable target ontology.
+A processor implements the `Processor` protocol, consumes a record plus immutable
+`ProcessingContext`, and may enrich the record or return derived records under `derived/`.
+Register it with `register_processor`. The pipeline validates protected raw provenance,
+parent IDs, safe derived paths, checksums, and unreviewed/unlabeled/unsplit state before
+atomically replacing `processed.jsonl`. Example future plugins: audio metadata, PDF text
+extraction, table schema validation, or configurable generic crops.
 
 ## Run durability
 
-The v0.1 `collect` uses an immutable-new-run convention, not crash-resume. Interrupted collection may leave some `raw/` files without a written manifest because the manifest is committed at the end. Production enhancement: append-only event log + checkpoint and replay; atomic per-asset commit; retry state. Do not claim this is already implemented.
+Fresh collection still requires an empty run directory. Before each candidate becomes
+visible in `manifest.jsonl`, collection atomically commits a per-asset checkpoint.
+`--resume` verifies the effective config fingerprint, reconstructs the manifest from
+checkpoints, verifies checkpointed raw bytes, and recovers a complete raw file that was
+written immediately before an interruption. Source lifecycle events distinguish started,
+resumed, completed, skipped and error outcomes. There is no automatic retry/backoff queue;
+an operator explicitly invokes `--resume`.
+
+If a resumed collection commits any new candidate outcome, stale `processed.jsonl`,
+`processing_summary.json` and `derived/` outputs are invalidated. A no-op resume of a
+completed run preserves them.
+
+JSON/JSONL metadata and the final export ZIP use sibling temporary files plus atomic
+replacement. Raw assets are streamed to a temporary directory and moved into place only
+after a complete bounded copy.
 
 ## Data architecture
 

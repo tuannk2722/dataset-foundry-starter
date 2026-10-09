@@ -62,6 +62,29 @@ class PolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             dest = Path(folder) / "asset.bin"
             with self.assertRaisesRegex(SkipAsset, "redirect not followed"):
-                fetch(Candidate("remote", "http", "https://example.org/test.bin", "test.bin"),
-                      dest, Limits(), policy)
+                fetch(
+                    Candidate("remote", "http", "https://example.org/test.bin", "test.bin"),
+                    dest,
+                    Limits(),
+                    policy,
+                )
+            self.assertFalse(dest.exists())
+
+    @patch("dataset_foundry.downloader.checked_url", return_value=("example.org", "/test.bin"))
+    def test_invalid_content_length_is_skipped(self, _checked):
+        response = Mock(status_code=200, is_redirect=False)
+        response.headers = {"Content-Length": "not-an-integer"}
+        session = Mock()
+        session.get.return_value = response
+        policy = Mock()
+        policy.session = session
+        with tempfile.TemporaryDirectory() as folder:
+            dest = Path(folder) / "asset.bin"
+            with self.assertRaisesRegex(SkipAsset, "invalid Content-Length"):
+                fetch(
+                    Candidate("remote", "http", "https://example.org/test.bin", "test.bin"),
+                    dest,
+                    Limits(),
+                    policy,
+                )
             self.assertFalse(dest.exists())

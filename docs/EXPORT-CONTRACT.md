@@ -17,6 +17,11 @@ BATCH.zip
 
 `schema.json` declares `schema_version: candidate-batch-v1`, `kind: unreviewed_candidates`, `labels_verified: false`, `split_assigned: false`.
 
+Before export, Dataset Foundry re-hashes every included file and rejects missing, unsafe,
+size-mismatched or checksum-mismatched assets. The ZIP is written to a sibling temporary
+file and atomically replaces the requested output only after successful completion.
+Manifest rows with an unknown status or promoted review/label/split state are rejected.
+
 ## Required per-asset fields
 
 `asset_id`: stable per source+candidate origin; not a global universal asset ID. `parent_id`: null for original / original asset ID for derived. `source_id`: registry ID. `source_adapter`: source type. `origin`: original path/URL/repository location (may contain sensitive local paths; audit before sharing). `original_name`: basename only. `license`, `rights_note`, `collected_at`. `mime_guess`, `media_kind`. `status`: downloaded | derived | duplicate | skipped | error. `review_status`: unreviewed. `label`: null. `split`: null. `file_path`: run-relative path for exported assets (in ZIP prepend `assets/`). `sha256`, `bytes`: included for successfully retrieved files. Optional: `duplicate_of`, `reason`, `width`, `height`, `ahash64`, `quality_flags`.
