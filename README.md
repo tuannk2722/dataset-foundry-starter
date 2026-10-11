@@ -2,14 +2,17 @@
 
 A small **general-purpose multimodal candidate collector** (Python 3.11+) intended to be extended by AI coding agents. It does **not** train models or claim that acquired data is correctly labeled.
 
-**Maturity:** operational local-first MVP, not a production web crawler. Supports local
-folders, ZIP archives, a static list of HTTPS asset URLs, and an optional Hugging Face
-dataset adapter. Collection has per-asset checkpoints, atomic metadata writes, verified
-crash resume, exact deduplication, and immutable raw files. Generic preprocessing covers
+**Maturity:** operational local-first collector, not a general-purpose unrestricted crawler.
+It supports local folders, ZIP archives, static HTTPS asset URLs, approved HTML pages, and
+an optional Hugging Face dataset adapter. Collection has bounded parallel workers,
+per-source byte quotas, retry/backoff for transient failures, per-asset checkpoints, atomic
+metadata writes, verified crash resume, cross-run exact deduplication, content-signature
+validation, progress reporting, and immutable raw files. Generic preprocessing covers
 image quality metadata (optional Pillow), optional video frame extraction (external
 FFmpeg), and in-process adapter/processor registries. Audio/documents are ingested and
 tagged but not decoded/transcribed yet. No web page discovery/spidering, semantic labeling,
-web GUI, Roboflow adapter, or trained dataset promotion is implemented.
+No Roboflow adapter or trained dataset promotion is implemented. A token-protected local review
+UI records human decisions in a sidecar database without promoting labels or changing v1.
 
 ## 1. Install (Windows PowerShell)
 
@@ -20,6 +23,10 @@ py -3.11 -m venv .venv
 ```
 
 You may install only `-e .` if you only need local/ZIP/HTTPS collection without image metadata and Hugging Face. For `--video-interval`, install FFmpeg and add it to PATH. Use **D:** for workspace/cache if C: is low on space.
+
+For approved JavaScript-rendered pages, install `-e ".[browser]"` and then run
+`playwright install chromium`. Browser mode is optional and disabled unless a `web_page`
+source selects it.
 
 ## 2. Offline smoke test (no network)
 
@@ -94,7 +101,7 @@ processor: image probe/aHash + optional FFmpeg frames -> processed.jsonl
 exporter -> exports/RUN.zip (unreviewed candidates + source metadata)
     |
     v
-external project staging -> review, labeling, cross-run dedup, train/val/test split
+external project staging -> task-specific labeling, perceptual dedup, train/val/test split
 ```
 
 **Do not treat exported files as a labeled or split-ready dataset.** They intentionally keep `review_status=unreviewed`, `label=null`, `split=null`.
@@ -102,8 +109,16 @@ external project staging -> review, labeling, cross-run dedup, train/val/test sp
 ## 5. Safety and blocked sources
 
 - A source without confirmed rights is skipped, and an event is recorded.
-- Only HTTPS direct URLs are fetched; HTTP, credential-bearing URLs, internal/private IPs and DNS mappings are refused.
-- `robots.txt` is respected by the HTTP adapter; on errors it fails closed. When a site responds with 401, 403, 429, or 451, the host is skipped for the rest of the run. **No CAPTCHA solving, proxy rotation, login bypass, stealth automation or rate-limit evasion.**
+- Only explicitly configured HTTPS assets/pages are fetched; HTTP, credential-bearing URLs,
+  internal/private IPs and DNS mappings are refused.
+- `robots.txt` is respected by HTTP adapters; on errors it fails closed. A 401, 403, 429
+  or 451 response, or a bounded response prefix indicating a Cloudflare/Akamai/Imperva/
+  DataDome-style challenge or CAPTCHA, opens the host circuit and records an alert. Vendor
+  detection is heuristic and is not proof that an IP address was blocked. **No CAPTCHA
+  solving, proxy rotation, login bypass, stealth automation or rate-limit evasion.**
+- Automatic retries apply only to transient network errors and 408/425/5xx responses.
+  Access denials, robots exclusions, redirects, challenges and CAPTCHAs never trigger a
+  browser fallback.
 - Redirects are never auto-followed. Verify and add any approved destination explicitly.
 - File size, files per source, ZIP member size and compression ratio are bounded. Untrusted ZIP contents are read by entry, never mass-extracted. Unsafe, encrypted, oversized, symlink and compression-ratio-rejected ZIP members are recorded as skipped with a reason.
 - Collect only data you have permission to use, apply privacy minimization, and assess personal data/image rights (especially classrooms and minors). Site access permission and training-use permission are different questions.
@@ -115,10 +130,13 @@ This is a protective baseline, not a formal legal/compliance or hardened network
 
 - `workspace/RUN/manifest.jsonl`: all candidate outcomes, including skipped, duplicate and error.
 - `workspace/RUN/events.jsonl`: source-level events.
+- `workspace/RUN/alerts.jsonl`: policy/quota/retry alerts when any are raised.
 - `workspace/RUN/run_state.json`: run/config fingerprint and lifecycle state.
 - `workspace/RUN/checkpoints/*.json`: atomic per-candidate recovery records.
 - `workspace/RUN/processed.jsonl`: optional enrichment and derived frames.
 - `workspace/RUN/sources.json`: source attribution and rights notes.
+- `workspace/RUN/review.sqlite3`: optional human review decisions, separate from manifests.
+- `workspace/.dataset-foundry-hashes.sqlite3`: exact cross-run SHA-256 index.
 - `exports/RUN.zip`: portable **candidate-batch-v1** contract; see `docs/EXPORT-CONTRACT.md`.
 
 The output directory for a fresh `collect` must be empty. This prevents accidental raw-data
@@ -138,7 +156,34 @@ enrich metadata or return derived records. Processor output is rejected if it ch
 provenance, silently assigns review/label/split state, references an unsafe path, or reports
 an incorrect checksum. See `tests/test_plugins.py` for a synthetic local example.
 
-## 8. Operational limitations and assumptions
+Installed trusted packages may also expose entry points in `dataset_foundry.adapters` or
+`dataset_foundry.processors`; entry-point names become registry names. Collisions and
+non-callable plugins fail closed. Loading an entry point executes package code, so only
+install trusted plugins. Select plugin processors with repeated `--processor NAME` options.
+Plugin packages declare callables as follows:
+
+```toml
+[project.entry-points."dataset_foundry.adapters"]
+my_adapter = "my_package.adapter:discover"
+
+[project.entry-points."dataset_foundry.processors"]
+my_processor = "my_package.processor:process_record"
+```
+
+## 8. Progress, monitoring and review
+
+`collect` reports source progress on stderr while keeping its final JSON on stdout; use
+`--no-progress` for automation. `collection_summary.json`, `events.jsonl` and optional
+`alerts.jsonl` distinguish completed/degraded sources and record quota, retry exhaustion,
+rate-limit, challenge and CAPTCHA outcomes. Self-recovery is limited to crash resume and
+bounded transient retry.
+
+Run `dsforge review --run workspace/RUN`. The server binds only to `127.0.0.1`, generates a
+session token, verifies each asset checksum before serving it, and stores
+accepted/rejected/pending decisions in `review.sqlite3`. It never edits the manifests or
+silently promotes candidates into a labeled dataset.
+
+## 9. Operational limitations and assumptions
 
 - Local directories are not filesystem snapshots; avoid changing source files during a
   run. Raw files already checkpointed are immutable and verified on resume.
@@ -147,19 +192,28 @@ an incorrect checksum. See `tests/test_plugins.py` for a synthetic local example
 - A run directory is a trusted, single-writer workspace. Checkpoints are integrity-checked
   but not cryptographically signed, and concurrent `collect`/`process` writers are not
   supported.
-- HTTP collection remains sequential and fail-closed. DNS is checked before requests but
+- HTTP collection uses a bounded worker queue and per-host pacing. DNS is checked before requests but
   is not pinned to a resolved address; use controlled egress before accepting untrusted URL
   registries in higher-risk environments.
-- MIME is currently filename-guessed; content-signature/type mismatch policy remains future
-  work. Optional Pillow verifies images during processing.
-- Registry plugins are registered in-process; automatic third-party package entry-point
-  loading is not implemented.
+- MIME signatures are recorded for common media/archive/document types. `mime_validation`
+  can be `off`, `warn` (default), or `strict`; source `allowed_mime_types` always fails closed
+  for unknown/disallowed signatures. This is signature screening, not full media decoding.
+- The workspace-level SQLite index validates referenced files before exact cross-run SHA-256
+  matches. It does not perform perceptual or semantic deduplication.
+- `max_source_mb` counts bytes of successfully collected candidates, including exact
+  duplicates; rejected partial streams release their reservation.
+- Browser rendering supports explicitly approved same-host pages, blocks service workers,
+  redirects and cross-origin subresources, and has no login/CAPTCHA/stealth support.
+- Alerts are local JSONL artifacts; external paging, dashboards and automatic operator
+  notification are not included.
+- Entry-point adapters use the fixed `Source` fields and existing downloader candidate kinds;
+  arbitrary plugin-specific TOML or transports require an explicit core API change.
 - Processing is sequential and recreates `derived/`. Keep the last successful export if a
   machine interruption occurs during expensive video processing.
 - Hugging Face uses its official public API with no token. Gated/private/unavailable
   datasets are not bypassed.
 
-## 9. AI-agent workflow
+## 10. AI-agent workflow
 
 1. Read `AGENTS.md` then `docs/00-INDEX.md`.
 2. Make small, isolated tasks: a new adapter, a processor, an export mapper, or integration tests.

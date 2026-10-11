@@ -9,12 +9,14 @@ from .hf_dataset import discover_hf_dataset
 from .http_list import discover_http_list
 from .local_dir import discover_local_dir
 from .local_zip import discover_local_zip
+from .web_page import discover_web_pages
 
 ADAPTERS: dict[str, DiscoveryAdapter] = {
     "local_dir": discover_local_dir,
     "local_zip": discover_local_zip,
     "http_list": discover_http_list,
     "hf_dataset": discover_hf_dataset,
+    "web_page": discover_web_pages,
 }
 ADAPTER_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 

@@ -24,7 +24,12 @@ Manifest rows with an unknown status or promoted review/label/split state are re
 
 ## Required per-asset fields
 
-`asset_id`: stable per source+candidate origin; not a global universal asset ID. `parent_id`: null for original / original asset ID for derived. `source_id`: registry ID. `source_adapter`: source type. `origin`: original path/URL/repository location (may contain sensitive local paths; audit before sharing). `original_name`: basename only. `license`, `rights_note`, `collected_at`. `mime_guess`, `media_kind`. `status`: downloaded | derived | duplicate | skipped | error. `review_status`: unreviewed. `label`: null. `split`: null. `file_path`: run-relative path for exported assets (in ZIP prepend `assets/`). `sha256`, `bytes`: included for successfully retrieved files. Optional: `duplicate_of`, `reason`, `width`, `height`, `ahash64`, `quality_flags`.
+`asset_id`: stable per source+candidate origin; not a global universal asset ID. `parent_id`: null for original / original asset ID for derived. `source_id`: registry ID. `source_adapter`: source type. `origin`: original path/URL/repository location (may contain sensitive local paths; audit before sharing). `original_name`: basename only. `license`, `rights_note`, `collected_at`. `mime_guess`, `media_kind`. `status`: downloaded | derived | duplicate | skipped | error. `review_status`: unreviewed. `label`: null. `split`: null. `file_path`: run-relative path for exported assets (in ZIP prepend `assets/`). `sha256`, `bytes`: included for successfully retrieved files.
+
+Optional: `duplicate_of`, `duplicate_scope`, `duplicate_run`, `reason`, `attempts`,
+`mime_detected`, `mime_declared`, `mime_validation`, `width`, `height`, `ahash64`,
+`quality_flags`. Cross-run duplicate references are audit metadata and do not imply the
+referenced file is included in the same batch.
 
 ## Intended importer flow
 

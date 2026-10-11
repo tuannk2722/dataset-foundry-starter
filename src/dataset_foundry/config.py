@@ -43,11 +43,14 @@ def _load_limits(data: dict[str, Any]) -> Limits:
         raise ValueError(f"invalid limits: {exc}") from exc
     integer_limits = (
         limits.max_asset_mb,
+        limits.max_source_mb,
         limits.max_assets_per_source,
         limits.max_zip_compression_ratio,
+        limits.max_workers,
+        limits.retry_attempts,
     )
     if any(not isinstance(value, int) or isinstance(value, bool) for value in integer_limits):
-        raise TypeError("asset, file-count, and ZIP limits must be integers")
+        raise TypeError("asset, source, worker, retry, file-count, and ZIP limits must be integers")
     delay = limits.min_request_delay_seconds
     if (
         not isinstance(delay, (int, float))
@@ -58,8 +61,24 @@ def _load_limits(data: dict[str, Any]) -> Limits:
         raise ValueError("min_request_delay_seconds must be between 0.5 and 3600")
     if not (0 < limits.max_asset_mb <= 2048 and 0 < limits.max_assets_per_source <= 100000):
         raise ValueError("limits must have positive bounded values")
+    if not limits.max_asset_mb <= limits.max_source_mb <= 1024 * 1024:
+        raise ValueError("max_source_mb must be at least max_asset_mb and at most 1048576")
     if not (1 <= limits.max_zip_compression_ratio <= 10000):
         raise ValueError("max_zip_compression_ratio must be between 1 and 10000")
+    if not 1 <= limits.max_workers <= 32:
+        raise ValueError("max_workers must be between 1 and 32")
+    if not 1 <= limits.retry_attempts <= 10:
+        raise ValueError("retry_attempts must be between 1 and 10")
+    backoff = limits.retry_backoff_seconds
+    if (
+        not isinstance(backoff, (int, float))
+        or isinstance(backoff, bool)
+        or not math.isfinite(backoff)
+        or not 0 <= backoff <= 60
+    ):
+        raise ValueError("retry_backoff_seconds must be between 0 and 60")
+    if limits.mime_validation not in {"off", "warn", "strict"}:
+        raise ValueError("mime_validation must be 'off', 'warn', or 'strict'")
     return limits
 
 
@@ -113,7 +132,26 @@ def load_settings(config_path: str | Path) -> Settings:
             revision=_string(row, "revision", "main"),
             include_extensions=include_extensions,
             recursive=_boolean(row, "recursive", True),
+            allowed_mime_types=tuple(
+                value.lower() for value in _strings(row, "allowed_mime_types")
+            ),
+            render_engine=_string(row, "render_engine", "direct"),
         )
+        if source.render_engine not in {"direct", "browser", "auto"}:
+            raise ValueError(f"Source {sid!r} render_engine must be direct, browser, or auto")
+        if source.adapter != "web_page" and source.render_engine != "direct":
+            raise ValueError(
+                f"Source {sid!r} may select a render_engine only with adapter 'web_page'"
+            )
+        if any(
+            not value
+            or len(value.split("/")) != 2
+            or any(not part for part in value.split("/"))
+            or (value.split("/")[0] == "*" and value != "*/*")
+            or any(character.isspace() for character in value)
+            for value in source.allowed_mime_types
+        ):
+            raise ValueError(f"Source {sid!r} has an invalid allowed MIME type")
         if source.enabled and not source.rights_note.strip():
             raise ValueError(f"Source {sid!r} needs rights_note before enabling")
         if (
@@ -124,7 +162,7 @@ def load_settings(config_path: str | Path) -> Settings:
             raise ValueError(f"Source {sid!r} needs a known license before collection")
         if source.adapter in {"local_dir", "local_zip"} and source.path is None:
             raise ValueError(f"Source {sid!r} needs path")
-        if source.adapter == "http_list" and not source.urls:
+        if source.adapter in {"http_list", "web_page"} and not source.urls:
             raise ValueError(f"Source {sid!r} needs urls")
         if source.adapter == "hf_dataset" and not source.repo_id:
             raise ValueError(f"Source {sid!r} needs repo_id")

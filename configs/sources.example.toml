@@ -4,9 +4,14 @@ name = "multimodal-demo"
 
 [limits]
 max_asset_mb = 100
+max_source_mb = 1024
 max_assets_per_source = 40
 max_zip_compression_ratio = 100
 min_request_delay_seconds = 1.5
+max_workers = 4
+retry_attempts = 3
+retry_backoff_seconds = 1.0
+mime_validation = "warn" # off | warn | strict
 
 # Safe, offline demo; run this immediately after cloning.
 [[sources]]
@@ -50,3 +55,18 @@ rights_note = "Review dataset card, access conditions, and permitted use."
 repo_id = "org/repository"
 revision = "main"
 include_extensions = [".jpg", ".png", ".txt", ".json", ".zip"]
+
+# An explicitly approved web page. "direct" fetches HTML without JavaScript.
+# "auto" renders only a detected JavaScript shell; it never falls back after an
+# access denial, bot challenge, or CAPTCHA. "browser" always renders and requires
+# pip install -e ".[browser]" plus: playwright install chromium
+[[sources]]
+id = "approved-js-page"
+adapter = "web_page"
+enabled = false
+rights_confirmed = false
+license = "unknown"
+rights_note = "Confirm crawl and content-use permission before enabling."
+urls = ["https://approved.example/app"]
+render_engine = "auto"
+allowed_mime_types = ["text/html"]

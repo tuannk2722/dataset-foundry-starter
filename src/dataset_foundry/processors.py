@@ -42,6 +42,9 @@ PROTECTED_ORIGINAL_FIELDS = (
     "rights_note",
     "collected_at",
     "mime_guess",
+    "mime_detected",
+    "mime_declared",
+    "mime_validation",
     "media_kind",
     "review_status",
     "label",
@@ -50,6 +53,9 @@ PROTECTED_ORIGINAL_FIELDS = (
     "file_path",
     "sha256",
     "bytes",
+    "attempts",
+    "duplicate_scope",
+    "duplicate_run",
 )
 
 

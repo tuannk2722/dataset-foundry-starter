@@ -16,9 +16,9 @@ Generic candidates have `source_id`, `kind`, `origin`, `name`, and adapter-speci
 
 A small `DiscoveryAdapter` Protocol and adapter registry are present. Add a module for each
 new source type, then call `register_adapter` before loading its configuration. Registration
-is in-process; automatic Python package entry-point loading is not implemented. Download
-handling remains centralized in `downloader.py`, so a new transport kind needs a matching
-bounded fetcher.
+can be in-process or through trusted package entry points in `dataset_foundry.adapters`.
+Download handling remains centralized in `downloader.py`, so a new transport kind needs a
+matching bounded fetcher.
 
 ## Add a processor
 
@@ -36,8 +36,15 @@ visible in `manifest.jsonl`, collection atomically commits a per-asset checkpoin
 `--resume` verifies the effective config fingerprint, reconstructs the manifest from
 checkpoints, verifies checkpointed raw bytes, and recovers a complete raw file that was
 written immediately before an interruption. Source lifecycle events distinguish started,
-resumed, completed, skipped and error outcomes. There is no automatic retry/backoff queue;
-an operator explicitly invokes `--resume`.
+resumed, completed, degraded, skipped and error outcomes. Transient HTTP/network failures
+use a configured bounded retry/backoff policy; policy and access failures are not retried.
+An operator invokes `--resume` for crash recovery, not as an access-control bypass.
+
+Collection uses a bounded executor for fetch work, then commits checkpoints, dedup
+decisions, the cross-run SQLite hash index and manifests in discovery order. A thread-safe
+per-source byte budget bounds concurrent streams. Common content signatures are checked
+before commit. The optional `web_page` transport uses direct HTML by default and may render
+approved JavaScript shells through Playwright; challenges never trigger browser fallback.
 
 If a resumed collection commits any new candidate outcome, stale `processed.jsonl`,
 `processing_summary.json` and `derived/` outputs are invalidated. A no-op resume of a

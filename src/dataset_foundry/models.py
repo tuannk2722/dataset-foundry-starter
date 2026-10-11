@@ -18,14 +18,21 @@ class Source:
     revision: str = "main"
     include_extensions: tuple[str, ...] = ()
     recursive: bool = True
+    allowed_mime_types: tuple[str, ...] = ()
+    render_engine: str = "direct"
 
 
 @dataclass(frozen=True)
 class Limits:
     max_asset_mb: int = 100
+    max_source_mb: int = 1024
     max_assets_per_source: int = 100
     max_zip_compression_ratio: int = 100
     min_request_delay_seconds: float = 1.5
+    max_workers: int = 4
+    retry_attempts: int = 3
+    retry_backoff_seconds: float = 1.0
+    mime_validation: str = "warn"
 
     @property
     def max_bytes(self) -> int:
@@ -43,7 +50,7 @@ class Settings:
 @dataclass(frozen=True)
 class Candidate:
     source_id: str
-    kind: str  # local | http | zip_member | huggingface
+    kind: str  # local | http | web_page | zip_member | huggingface
     origin: str
     name: str
     path: Path | None = None

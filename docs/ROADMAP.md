@@ -16,14 +16,19 @@
 - Atomic export with pre-export size/SHA-256 verification.
 - Fail-closed typed TOML validation and auditable reasons for rejected ZIP members.
 
+## v0.3 — implemented
+
+- Per-source byte quotas, bounded parallel fetches, progress callbacks and transient retry.
+- Content-signature/MIME policy, exact cross-run SQLite index and package entry-point plugins.
+- Approved-page direct/browser engines with fail-closed challenge detection and no bypass.
+- Local token-protected review UI plus source health events and structured alert artifacts.
+
 ## Recommended next
 
-- Source-level byte quotas, progress reporting, explicit retry policy, and a robust
-  producer/worker queue for carefully bounded parallelism.
-- Optional Python package entry-point loading for the existing in-process registries.
-- Configurable media validation policies, source-specific allowed MIME, content signatures and file-type mismatch detection.
+- Production hardening for metrics/alert exporters, controlled egress and long-running jobs.
+- Broader content-signature coverage and optional full decoder validation profiles.
 - More reliable SSRF/DNS pinning or controlled egress when used with untrusted URL inputs.
-- Hash/index across multiple runs and a review UI for generic acceptance/rejection.
+- Review audit-history export under a separately versioned contract if downstream needs it.
 
 ## Later — only as needed
 
