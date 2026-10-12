@@ -1,0 +1,25 @@
+[project]
+name = "exam-surveillance-eval"
+
+[limits]
+max_asset_mb = 200
+max_source_mb = 1024
+max_assets_per_source = 50
+max_zip_compression_ratio = 100
+min_request_delay_seconds = 1.5
+max_workers = 4
+retry_attempts = 3
+retry_backoff_seconds = 1.0
+mime_validation = "warn"
+
+[[sources]]
+id = "youtube-cctv-exam-videos"
+adapter = "local_dir"
+enabled = true
+rights_confirmed = true
+license = "educational-research"
+rights_note = "CCTV and classroom surveillance clips from independent sources (YouTube) for exam integrity evaluation (Holdout/New-Dev). No overlap with SCB or Roboflow."
+path = "../imports/exam_videos"
+recursive = false
+include_extensions = [".mp4", ".mkv", ".avi"]
+allowed_mime_types = ["video/*"]
