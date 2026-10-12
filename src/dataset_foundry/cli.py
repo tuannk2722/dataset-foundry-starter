@@ -74,6 +74,11 @@ def build_parser() -> argparse.ArgumentParser:
     exp = sub.add_parser("export", help="Export candidate ZIP for project-side audit")
     exp.add_argument("--run", required=True, type=Path)
     exp.add_argument("--output", required=True, type=Path)
+    exp.add_argument(
+        "--review-filter",
+        choices=["accepted", "rejected", "pending"],
+        help="Export only assets matching this review decision (e.g. accepted)",
+    )
     review = sub.add_parser("review", help="Open a token-protected local review UI")
     review.add_argument("--run", required=True, type=Path)
     review.add_argument("--host", default="127.0.0.1")
@@ -115,7 +120,7 @@ def main(argv: list[str] | None = None) -> None:
             processors=args.processors,
         )
     elif args.command == "export":
-        result = export_batch(args.run, args.output)
+        result = export_batch(args.run, args.output, review_filter=args.review_filter)
     elif args.command == "review":
         token = args.token or generate_review_token()
         print(

@@ -37,7 +37,7 @@ def _validate_contract_record(record: dict) -> None:
         raise ValueError(f"Manifest contains promoted review data for asset {asset_id}")
 
 
-def export_batch(run_dir: Path, output: Path) -> dict:
+def export_batch(run_dir: Path, output: Path, *, review_filter: str | None = None) -> dict:
     run_dir = run_dir.resolve()
     output = output.resolve()
     if output.is_relative_to(run_dir):
@@ -48,7 +48,28 @@ def export_batch(run_dir: Path, output: Path) -> dict:
     records = read_jsonl(data_path)
     for record in records:
         _validate_contract_record(record)
-    included = [r for r in records if r["status"] in {"downloaded", "derived"}]
+    if review_filter is not None:
+        import sqlite3
+
+        db_path = run_dir / "review.sqlite3"
+        if not db_path.exists():
+            raise ValueError(f"Review database not found at {db_path}; cannot filter by {review_filter!r}")
+        with sqlite3.connect(db_path) as conn:
+            matching_ids = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT asset_id FROM review_decisions WHERE decision = ?",
+                    (review_filter,),
+                )
+            }
+        included = [
+            r for r in records
+            if r["status"] in {"downloaded", "derived"} and r["asset_id"] in matching_ids
+        ]
+        manifest_records = [r for r in records if r["asset_id"] in matching_ids]
+    else:
+        included = [r for r in records if r["status"] in {"downloaded", "derived"}]
+        manifest_records = records
     counts = Counter(r["media_kind"] for r in included)
     assets = []
     for record in included:
@@ -71,7 +92,7 @@ def export_batch(run_dir: Path, output: Path) -> dict:
                 zf.write(asset, f"assets/{record['file_path']}")
             zf.writestr(
                 "manifest.jsonl",
-                "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records),
+                "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in manifest_records),
             )
             for extra in (
                 "sources.json",
@@ -81,27 +102,42 @@ def export_batch(run_dir: Path, output: Path) -> dict:
             ):
                 if (run_dir / extra).is_file():
                     zf.write(run_dir / extra, extra)
+            if (run_dir / "review.sqlite3").is_file():
+                import sqlite3
+
+                with sqlite3.connect(run_dir / "review.sqlite3") as conn:
+                    conn.row_factory = sqlite3.Row
+                    decisions = [
+                        dict(row)
+                        for row in conn.execute(
+                            "SELECT asset_id, decision, note, updated_at FROM review_decisions"
+                        ).fetchall()
+                    ]
+                zf.writestr(
+                    "review_decisions.json",
+                    json.dumps(decisions, ensure_ascii=False, indent=2),
+                )
+            schema_data = {
+                "schema_version": SCHEMA_VERSION,
+                "kind": f"{review_filter}_candidates" if review_filter else "unreviewed_candidates",
+                "asset_path_prefix": "assets/",
+                "split_assigned": False,
+                "labels_verified": False,
+            }
+            if review_filter:
+                schema_data["review_filter"] = review_filter
             zf.writestr(
                 "schema.json",
-                json.dumps(
-                    {
-                        "schema_version": SCHEMA_VERSION,
-                        "kind": "unreviewed_candidates",
-                        "asset_path_prefix": "assets/",
-                        "split_assigned": False,
-                        "labels_verified": False,
-                    },
-                    indent=2,
-                ),
+                json.dumps(schema_data, indent=2),
             )
-            zf.writestr(
-                "README.txt",
-                "DATASET FOUNDRY CANDIDATE BATCH v1\n"
-                "These files are unreviewed candidates, NOT a training/validation/test dataset.\n"
-                "Review rights, provenance, quality, subject privacy, duplicates, and labels\n"
+            readme_text = (
+                f"DATASET FOUNDRY CANDIDATE BATCH v1 ({review_filter.upper() if review_filter else 'ALL'})\n"
+                "These files are candidates exported from review decisions, NOT a labeled training/validation/test dataset.\n"
+                "Review rights, provenance, quality, subject privacy, duplicates, and task labels\n"
                 "before promotion into a project's versioned datasets.\n"
-                "file_path in manifest.jsonl refers to the path AFTER assets/.\n",
+                "file_path in manifest.jsonl refers to the path AFTER assets/.\n"
             )
+            zf.writestr("README.txt", readme_text)
         os.replace(pending, output)
     finally:
         if pending is not None:

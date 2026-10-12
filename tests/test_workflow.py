@@ -207,3 +207,23 @@ path = "data"
         with self.assertRaisesRegex(ValueError, "promoted review data"):
             export_batch(run, output)
         self.assertFalse(output.exists())
+
+    def test_export_with_review_filter(self):
+        run = self.root / "filter-run"
+        collect(load_settings(self._config()), run)
+        process(run)
+        from dataset_foundry.review import ReviewStore
+        store = ReviewStore(run)
+        candidates = store.candidates()
+        first_id = candidates[0]["asset_id"]
+        store.set_decision(first_id, "accepted", "good sample")
+        output = self.root / "filtered.zip"
+        exported = export_batch(run, output, review_filter="accepted")
+        self.assertEqual(exported["exported_assets"], 1)
+        with ZipFile(output) as zipfile:
+            names = zipfile.namelist()
+            self.assertEqual(len([x for x in names if x.startswith("assets/")]), 1)
+            schema = json.loads(zipfile.read("schema.json"))
+            self.assertEqual(schema["review_filter"], "accepted")
+            self.assertIn("review_decisions.json", names)
+
